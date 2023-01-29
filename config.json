@@ -1,0 +1,39 @@
+{
+    "images_for_calc_intrinsics_folder_location": "./images_for_calibration",
+
+    "apriltag": {
+        "tag_size": 0.1524,
+        "_comment": "0.1524 is the size of the april tag in meters (6 inches)",
+        "tag_family": "tag16h5",
+        "_comment_2": "tag16h5 is the tag family used by FRC 2023"
+    },
+
+    "camera": {
+        "port": 0,
+        "properties": {
+            "fps": 30,
+            "brightness": 50,
+            "contrast": 0,
+            "saturation": 50,
+            "gain": 0,
+            "exposure_absolute": 12
+        },
+        "size": {
+            "width": 1024,
+            "height": 576,
+            "_comment": "1024x576 is tested by @aaronleetw to be the minimum resolution while",
+            "_comment_2": "still preserving accuracy (need more testing to confirm)"
+        }
+    },
+
+    "calc_intrinsics": {
+        "checkerboard": {
+            "width": 9,
+            "height": 6
+        },
+        "filenames": {
+            "mtx": "mtx.npy",
+            "dist": "dist.npy"
+        }
+    }
+}
