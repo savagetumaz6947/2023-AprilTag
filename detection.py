@@ -2,6 +2,8 @@ import apriltag
 import cv2
 import numpy as np
 from _helper import get_config
+from math import cos, sin, radians
+from scipy.spatial.transform import Rotation as R
 
 CONFIG = get_config()
 
@@ -79,10 +81,9 @@ def detect_apriltags(input_frame: cv2.Mat, draw_tags=True, draw_tag_dists=True):
                 cv2.putText(frame, f"{chr(ord('x')+i)}: {round(corners_trans[i][4], 5)}", (cX+15, cY+(15*i)),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
         
-        # get the yaw, pitch and roll of the center of the tag in degrees
-        yaw = -round(np.arctan2(-pose[2][0], np.sqrt(pose[2][1]**2 + pose[2][2]**2)) * 180 / np.pi, 5)
-        pitch = -round(np.arctan2(pose[2][1], pose[2][2]) * 180 / np.pi, 5)
-        roll = -round(np.arctan2(pose[1][0], pose[0][0]) * 180 / np.pi, 5)
+        rot = R.from_matrix(pose[:3, :3])
+        # TODO: need to double check, this seems to be incorrect
+        yaw, pitch, roll = rot.as_euler('xyz', degrees=True)
 
         return_list.append({
             "id": r.tag_id,
@@ -92,6 +93,36 @@ def detect_apriltags(input_frame: cv2.Mat, draw_tags=True, draw_tag_dists=True):
 
     return frame, return_list
 
+def draw_on_field(results):
+    # open an image called field.png
+    img = cv2.imread("field.png")
+    TAGS = CONFIG["field_data"]["tags"]
+    tag_used = [False]*9
+    if len(results) > 0:
+        avgX = 0
+        avgY = 0
+        for r in results:
+            tag_used[r["id"]] = True
+            # TODO: check this math
+            imageX = -r["dist"][2] * cos(radians(90 - r["rot"][0]))
+            imageY = (r["dist"][0] * cos(radians(r["rot"][0])) + r["dist"][2] * sin(radians(90 - r["rot"][0])))
+            # print(f"Tag {r['id']} at ({imageX}, {imageY})")
+            avgX += TAGS[r["id"]]["x"] + imageX * CONFIG["field_data"]["m_to_px"]
+            avgY += TAGS[r["id"]]["y"] + imageY * CONFIG["field_data"]["m_to_px"]
+        #     avgX += TAGS[r["id"]]["x"] - (r["dist"][2] * CONFIG["field_data"]["m_to_px"])
+        #     avgY += TAGS[r["id"]]["y"] - (r["dist"][0] * CONFIG["field_data"]["m_to_px"])
+        avgX /= len(results)
+        avgY /= len(results)
+        cv2.circle(img, (int(avgX), int(avgY)), 5, (0, 255, 0), -1)
+    for point in TAGS:
+        if point["id"] == 0:
+            continue
+        # draw a circle on the image at the point
+        cv2.circle(img, (point["x"], point["y"]), 5, (0, 0, 255) if tag_used[point["id"]] else (0, 0, 0), -1)
+        # draw the id of the point on the image
+        cv2.putText(img, str(point["id"]), (point["x"], point["y"]-15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+    return img
+
 if __name__ == "__main__":
     cap = cv2.VideoCapture(CONFIG["camera"]["port"])
     print(f"[INFO] start VideoCapture on USB {CONFIG['camera']['port']}")
@@ -100,6 +131,8 @@ if __name__ == "__main__":
         ret, frame = cap.read()
         frame = cv2.resize(frame, (CONFIG["camera"]["size"]["width"], CONFIG["camera"]["size"]["height"]))
         drawn_frame, tags = detect_apriltags(frame)
+        field = draw_on_field(tags)
+        cv2.imshow("field", field)
         cv2.imshow("drawn_frame", drawn_frame)
         cv2.imshow("frame", frame)
         print(tags)

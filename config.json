@@ -35,5 +35,58 @@
             "mtx": "mtx.npy",
             "dist": "dist.npy"
         }
+    },
+
+    "field_data": {
+        "m_to_px": 56.5573770492,
+        "_comment": "1.22m = 69px (measured by @aaronleetw), 1m = 56.5573770492px",
+        "tags": [
+            {
+                "id": 0,
+                "x": 0,
+                "y": 0,
+                "_comment": "Tag 0 does not exist, this is just a placeholder"
+            },
+            {
+                "id": 1,
+                "x": 1040,
+                "y": 422
+            },
+            {
+                "id": 2,
+                "x": 1040,
+                "y": 328
+            },
+            {
+                "id": 3,
+                "x": 1040,
+                "y": 234
+            },
+            {
+                "id": 4,
+                "x": 1078,
+                "y": 102
+            },
+            {
+                "id": 5,
+                "x": 188,
+                "y": 102
+            },
+            {
+                "id": 6,
+                "x": 226,
+                "y": 234
+            },
+            {
+                "id": 7,
+                "x": 226,
+                "y": 328
+            },
+            {
+                "id": 8,
+                "x": 226,
+                "y": 422
+            }
+        ]
     }
 }
