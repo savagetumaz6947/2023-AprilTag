@@ -1,8 +1,8 @@
-import apriltag
+import pupil_apriltags as atag
 import cv2
 import numpy as np
 from _helper import get_config
-from math import cos, sin, radians
+from math import cos, sin, radians, atan2, sqrt
 from scipy.spatial.transform import Rotation as R
 
 CONFIG = get_config()
@@ -19,11 +19,31 @@ def detect_apriltags(input_frame: cv2.Mat, draw_tags=True, draw_tag_dists=True):
     gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
     # get the dectector with the family of tags we want to detect
-    options = apriltag.DetectorOptions(families=CONFIG["apriltag"]["tag_family"])
-    detector = apriltag.Detector(options)
+    detector = atag.Detector(families=CONFIG["apriltag"]["tag_family"])
 
     # detect the apriltags in the image
-    results = detector.detect(gray_frame)
+    results = detector.detect(gray_frame, True, (MTX[0,0], MTX[1,1], MTX[0,2], MTX[1,2]), TAG_SIZE)
+
+    return_list = []
+
+    for r in results:
+        if not (r.decision_margin > 10 and r.hamming <= 1 and 1 <= r.tag_id <= 8):
+            continue
+        # draw r.center and r.corners in the image
+        cv2.circle(frame, (int(r.center[0]), int(r.center[1])), 5, (0, 0, 255), -1)
+        # draw r.corners as a polygon
+        cv2.polylines(frame, np.int32([r.corners]), True, (0, 255, 0), 2)
+        # translate that to yaw, pitch, roll in degrees
+        rot = R.from_matrix(r.pose_R)
+        yaw, pitch, roll = rot.as_euler('yxz', degrees=True)
+        
+        return_list.append({
+            "id": r.tag_id,
+            "dist": tuple(np.squeeze(r.pose_t)), # x, y, z distances
+            "rot": (yaw, pitch, roll), # yaw, pitch, roll
+        })
+
+    return frame, return_list
 
     # create a list of the things we want to return
     return_list = []
@@ -103,14 +123,49 @@ def draw_on_field(results):
         avgY = 0
         for r in results:
             tag_used[r["id"]] = True
-            # TODO: check this math
-            imageX = -r["dist"][2] * cos(radians(90 - r["rot"][0]))
-            imageY = (r["dist"][0] * cos(radians(r["rot"][0])) + r["dist"][2] * sin(radians(90 - r["rot"][0])))
-            # print(f"Tag {r['id']} at ({imageX}, {imageY})")
-            avgX += TAGS[r["id"]]["x"] + imageX * CONFIG["field_data"]["m_to_px"]
-            avgY += TAGS[r["id"]]["y"] + imageY * CONFIG["field_data"]["m_to_px"]
-        #     avgX += TAGS[r["id"]]["x"] - (r["dist"][2] * CONFIG["field_data"]["m_to_px"])
-        #     avgY += TAGS[r["id"]]["y"] - (r["dist"][0] * CONFIG["field_data"]["m_to_px"])
+            x = r["dist"][0]
+            z = r["dist"][2]
+            yaw = radians(r["rot"][0])
+            if yaw < 0 and x > 0:
+                yaw = abs(yaw)
+                l1 = z * sin(yaw)
+                l2 = x * sin(yaw)
+                y_Trans = - (l1 + l2)
+                x_Trans = - (z * cos(yaw))
+            elif yaw < 0 and x < 0:
+                yaw = abs(yaw)
+                x = abs(x)
+                l1 = z * sin(yaw)
+                l2 = (1 / cos(yaw)) * x
+                y_Trans = - (l1 - l2)
+                x_Trans = - (z * sin(yaw))
+            elif yaw > 0 and x > 0:
+                l1 = z * sin(yaw)
+                l2 = (1 / cos(yaw)) * x
+                y_Trans = l1 - l2
+                x_Trans = - (z * cos(yaw))
+            else:
+                x = abs(x)
+                l1 = x * cos(yaw)
+                l2 = z * sin(yaw)
+                y_Trans = l1 + l2
+                x_Trans = - (z * cos(yaw))
+
+        #     # imageX = -r["dist"][2] * cos(radians(90 - r["rot"][0]))
+        #     # imageY = (r["dist"][0] * cos(radians(r["rot"][0])) + r["dist"][2] * sin(radians(90 - r["rot"][0])))
+        #     # # print(f"Tag {r['id']} at ({imageX}, {imageY})")
+            # avgX += TAGS[r["id"]]["x"] + imageX * CONFIG["field_data"]["m_to_px"]
+            # avgY += TAGS[r["id"]]["y"] + imageY * CONFIG["field_data"]["m_to_px"]
+        #     l1 = (-r["dist"][0]) * cos(radians(r["rot"][0])) # x cos yaw
+        #     l2 = r["dist"][2] * sin(radians(r["rot"][0])) # z sin yaw
+        #     y_Trans = l1 + l2
+        #     y_Trans = 0
+        #     x_Trans = - (r["dist"][2] * sin(radians(r["rot"][0])))
+        #     print(r["dist"][2], r["rot"][0], sin(radians(r["rot"][0])), x_Trans)
+            avgX += TAGS[r["id"]]["x"] + x_Trans * CONFIG["field_data"]["m_to_px"]
+            avgY += TAGS[r["id"]]["y"] + y_Trans * CONFIG["field_data"]["m_to_px"]
+        # #     avgX += TAGS[r["id"]]["x"] - (r["dist"][2] * CONFIG["field_data"]["m_to_px"])
+        # #     avgY += TAGS[r["id"]]["y"] - (r["dist"][0] * CONFIG["field_data"]["m_to_px"])
         avgX /= len(results)
         avgY /= len(results)
         cv2.circle(img, (int(avgX), int(avgY)), 5, (0, 255, 0), -1)
@@ -130,13 +185,14 @@ if __name__ == "__main__":
     while True:
         ret, frame = cap.read()
         frame = cv2.resize(frame, (CONFIG["camera"]["size"]["width"], CONFIG["camera"]["size"]["height"]))
+        # detect_apriltags(frame)
         drawn_frame, tags = detect_apriltags(frame)
         field = draw_on_field(tags)
         cv2.imshow("field", field)
         cv2.imshow("drawn_frame", drawn_frame)
         cv2.imshow("frame", frame)
         print(tags)
-        key = cv2.waitKey(1)
+        key = cv2.waitKey(5)
         if key == ord('q'):
             break
 
