@@ -37,6 +37,11 @@
         }
     },
 
+    "robot": {
+        "width": 0.762,
+        "length": 0.762
+    },
+
     "field_data": {
         "m_to_px": 56.5573770492,
         "_comment": "1.22m = 69px (measured by @aaronleetw), 1m = 56.5573770492px",

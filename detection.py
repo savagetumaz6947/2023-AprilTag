@@ -1,3 +1,4 @@
+from audioop import avg
 import pupil_apriltags as atag
 import cv2
 import numpy as np
@@ -56,6 +57,10 @@ def draw_on_field(results):
         # two variables storing the estimated location of the camera on the field
         avgX = 0
         avgY = 0
+        avgRobot = np.array([[0,0],[0,0],[0,0],[0,0]], np.float64)
+        # get the robot's dimensions
+        W = CONFIG["robot"]["width"] * CONFIG["field_data"]["m_to_px"]
+        L = CONFIG["robot"]["length"] * CONFIG["field_data"]["m_to_px"]
         for r in results:
             # this id has been used to estimate the location of the camera -> will light up in red
             tag_used[r["id"]] = True
@@ -63,34 +68,42 @@ def draw_on_field(results):
             x = r["dist"][0]
             z = r["dist"][2]
             yaw = radians(r["rot"][0])
+            ax = abs(x)
+            ayaw = abs(yaw)
             # split into different cases (calculate in meters)
             # TODO: find a more elegant catch-all solution
             if yaw > 0 and x > 0:
-                x_Trans = - (z * cos(yaw) + x * sin(yaw))
-                y_Trans = z * sin(yaw) - x * cos(yaw)
+                x_Trans = - (z * cos(ayaw) + ax * sin(ayaw))
+                y_Trans = z * sin(ayaw) - ax * cos(ayaw)
             elif yaw < 0 and x < 0:
-                yaw = abs(yaw)
-                x = abs(x)
-                x_Trans = - (z * cos(yaw) + x * sin(yaw))
-                y_Trans = - (z * sin(yaw) - x * cos(yaw))
+                x_Trans = - (z * cos(ayaw) + ax * sin(ayaw))
+                y_Trans = - (z * sin(ayaw) - ax * cos(ayaw))
             elif yaw > 0 and x < 0:
-                x = abs(x)
-                x_Trans = - (z * cos(yaw) - x * sin(yaw))
-                y_Trans = z * sin(yaw) + x * cos(yaw)
+                x_Trans = - (z * cos(ayaw) - ax * sin(ayaw))
+                y_Trans = z * sin(ayaw) + ax * cos(ayaw)
             else:
-                yaw = abs(yaw)
-                x_Trans = - (z * cos(yaw) - x * sin(yaw))
-                y_Trans = - (z * sin(yaw) + x * cos(yaw))
+                x_Trans = - (z * cos(ayaw) - ax * sin(ayaw))
+                y_Trans = - (z * sin(ayaw) + ax * cos(ayaw))
             # add to the average location of the camera
             # the tag's original location + the translation converted to pixels
             avgX += TAGS[r["id"]]["x"] + x_Trans * CONFIG["field_data"]["m_to_px"]
             avgY += TAGS[r["id"]]["y"] + y_Trans * CONFIG["field_data"]["m_to_px"]
+            avgRobot = avgRobot + np.array([
+                [avgX - W/2 * sin(yaw), avgY - W/2 * cos(yaw)],
+                [avgX - W/2 * sin(yaw) - L * cos(yaw), avgY - W/2 * cos(yaw) + L * sin(yaw)],
+                [avgX + W/2 * sin(yaw) - L * cos(yaw), avgY + W/2 * cos(yaw) + L * sin(yaw)],
+                [avgX + W/2 * sin(yaw), avgY + W/2 * cos(yaw)]], np.float64)
+            print(avgRobot)
         # average out the estimations
         avgX /= len(results)
         avgY /= len(results)
+        avgRobot = np.dot(avgRobot, 1.0/len(results))
+        avgRobot = avgRobot.astype("int32").reshape((-1,1,2))
+        # avgRobot = avgRobot.reshape((-1, 1, 2))
         # draw a dot on the estimated location of the camera
-        # TODO: turn that into a rectangle with the rotation of the robot
         cv2.circle(img, (int(avgX), int(avgY)), 5, (0, 255, 0), -1)
+        # draw the robot's estimated location and pose
+        cv2.polylines(img, [avgRobot], True, (252, 255, 102), 2)
     for point in TAGS:
         if point["id"] == 0:
             continue
