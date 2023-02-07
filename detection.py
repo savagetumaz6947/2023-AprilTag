@@ -86,13 +86,22 @@ def draw_on_field(results):
                 y_Trans = - (z * sin(ayaw) + ax * cos(ayaw))
             # add to the average location of the camera
             # the tag's original location + the translation converted to pixels
-            avgX += TAGS[r["id"]]["x"] + x_Trans * CONFIG["field_data"]["m_to_px"]
-            avgY += TAGS[r["id"]]["y"] + y_Trans * CONFIG["field_data"]["m_to_px"]
-            avgRobot = avgRobot + np.array([
-                [avgX - W/2 * sin(yaw), avgY - W/2 * cos(yaw)],
-                [avgX - W/2 * sin(yaw) - L * cos(yaw), avgY - W/2 * cos(yaw) + L * sin(yaw)],
-                [avgX + W/2 * sin(yaw) - L * cos(yaw), avgY + W/2 * cos(yaw) + L * sin(yaw)],
-                [avgX + W/2 * sin(yaw), avgY + W/2 * cos(yaw)]], np.float64)
+            if 5 <= r["id"] <= 8:
+                avgX += TAGS[r["id"]]["x"] - x_Trans * CONFIG["field_data"]["m_to_px"]
+                avgY += TAGS[r["id"]]["y"] - y_Trans * CONFIG["field_data"]["m_to_px"]
+                avgRobot = avgRobot + np.array([
+                    [avgX + W/2 * sin(yaw), avgY + W/2 * cos(yaw)],
+                    [avgX + W/2 * sin(yaw) + L * cos(yaw), avgY + W/2 * cos(yaw) - L * sin(yaw)],
+                    [avgX - W/2 * sin(yaw) + L * cos(yaw), avgY - W/2 * cos(yaw) - L * sin(yaw)],
+                    [avgX - W/2 * sin(yaw), avgY - W/2 * cos(yaw)]], np.float64)
+            else:
+                avgX += TAGS[r["id"]]["x"] + x_Trans * CONFIG["field_data"]["m_to_px"]
+                avgY += TAGS[r["id"]]["y"] + y_Trans * CONFIG["field_data"]["m_to_px"]
+                avgRobot = avgRobot + np.array([
+                    [avgX - W/2 * sin(yaw), avgY - W/2 * cos(yaw)],
+                    [avgX - W/2 * sin(yaw) - L * cos(yaw), avgY - W/2 * cos(yaw) + L * sin(yaw)],
+                    [avgX + W/2 * sin(yaw) - L * cos(yaw), avgY + W/2 * cos(yaw) + L * sin(yaw)],
+                    [avgX + W/2 * sin(yaw), avgY + W/2 * cos(yaw)]], np.float64)
             print(avgRobot)
         # average out the estimations
         avgX /= len(results)
