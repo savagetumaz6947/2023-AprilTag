@@ -3,8 +3,9 @@ import pupil_apriltags as atag
 import cv2
 import numpy as np
 from _helper import get_config
-from math import cos, sin, radians
+from math import cos, sin, radians, degrees
 from scipy.spatial.transform import Rotation as R
+from units import Units
 
 CONFIG = get_config()
 
@@ -13,7 +14,7 @@ DIST = np.load(CONFIG["calc_intrinsics"]["filenames"]["dist"])
 
 TAG_SIZE = CONFIG["apriltag"]["tag_size"]
 
-def detect_apriltags(input_frame: cv2.Mat, draw_tags=True, draw_tag_dists=True):
+def detect_apriltags(input_frame: cv2.Mat, draw_tags=True, draw_tag_dists=True) -> tuple[cv2.Mat, list[dict[str, any]]]:
     frame = input_frame.copy()
 
     # convert the frame to grayscale
@@ -46,9 +47,7 @@ def detect_apriltags(input_frame: cv2.Mat, draw_tags=True, draw_tag_dists=True):
 
     return frame, return_list
 
-def draw_on_field(results):
-    # open an image called field.png
-    img = cv2.imread("field.png")
+def calculate_abs_field_pos(results, find_robot_corners=False, unit=Units.M):
     # the tags' extrinsic data
     TAGS = CONFIG["field_data"]["tags"]
     tag_used = [False]*9
@@ -57,10 +56,13 @@ def draw_on_field(results):
         # two variables storing the estimated location of the camera on the field
         avgX = 0
         avgY = 0
-        avgRobot = np.array([[0,0],[0,0],[0,0],[0,0]], np.float64)
-        # get the robot's dimensions
-        W = CONFIG["robot"]["width"] * CONFIG["field_data"]["m_to_px"]
-        L = CONFIG["robot"]["length"] * CONFIG["field_data"]["m_to_px"]
+        avgYaw = 0
+        
+        if find_robot_corners:
+            avgRobot = np.array([[0,0],[0,0],[0,0],[0,0]], np.float64)
+            # get the robot's dimensions
+            W = CONFIG["robot"]["width"]
+            L = CONFIG["robot"]["length"]
         for r in results:
             # this id has been used to estimate the location of the camera -> will light up in red
             tag_used[r["id"]] = True
@@ -87,32 +89,54 @@ def draw_on_field(results):
             # add to the average location of the camera
             # the tag's original location + the translation converted to pixels
             if 5 <= r["id"] <= 8:
-                avgX += TAGS[r["id"]]["x"] - x_Trans * CONFIG["field_data"]["m_to_px"]
-                avgY += TAGS[r["id"]]["y"] - y_Trans * CONFIG["field_data"]["m_to_px"]
-                avgRobot = avgRobot + np.array([
-                    [avgX + W/2 * sin(yaw), avgY + W/2 * cos(yaw)],
-                    [avgX + W/2 * sin(yaw) + L * cos(yaw), avgY + W/2 * cos(yaw) - L * sin(yaw)],
-                    [avgX - W/2 * sin(yaw) + L * cos(yaw), avgY - W/2 * cos(yaw) - L * sin(yaw)],
-                    [avgX - W/2 * sin(yaw), avgY - W/2 * cos(yaw)]], np.float64)
+                avgX += TAGS[r["id"]]["x"]/CONFIG["field_data"]["m_to_px"] - x_Trans
+                avgY += TAGS[r["id"]]["y"]/CONFIG["field_data"]["m_to_px"] - y_Trans
+                if find_robot_corners:
+                    avgRobot = avgRobot + np.array([
+                        [avgX + W/2 * sin(yaw), avgY + W/2 * cos(yaw)],
+                        [avgX + W/2 * sin(yaw) + L * cos(yaw), avgY + W/2 * cos(yaw) - L * sin(yaw)],
+                        [avgX - W/2 * sin(yaw) + L * cos(yaw), avgY - W/2 * cos(yaw) - L * sin(yaw)],
+                        [avgX - W/2 * sin(yaw), avgY - W/2 * cos(yaw)]], np.float64)
+                avgYaw += -90-degrees(yaw)
             else:
-                avgX += TAGS[r["id"]]["x"] + x_Trans * CONFIG["field_data"]["m_to_px"]
-                avgY += TAGS[r["id"]]["y"] + y_Trans * CONFIG["field_data"]["m_to_px"]
-                avgRobot = avgRobot + np.array([
-                    [avgX - W/2 * sin(yaw), avgY - W/2 * cos(yaw)],
-                    [avgX - W/2 * sin(yaw) - L * cos(yaw), avgY - W/2 * cos(yaw) + L * sin(yaw)],
-                    [avgX + W/2 * sin(yaw) - L * cos(yaw), avgY + W/2 * cos(yaw) + L * sin(yaw)],
-                    [avgX + W/2 * sin(yaw), avgY + W/2 * cos(yaw)]], np.float64)
-            print(avgRobot)
+                avgX += TAGS[r["id"]]["x"]/CONFIG["field_data"]["m_to_px"] + x_Trans
+                avgY += TAGS[r["id"]]["y"]/CONFIG["field_data"]["m_to_px"] + y_Trans
+                if find_robot_corners:
+                    avgRobot = avgRobot + np.array([
+                        [avgX - W/2 * sin(yaw), avgY - W/2 * cos(yaw)],
+                        [avgX - W/2 * sin(yaw) - L * cos(yaw), avgY - W/2 * cos(yaw) + L * sin(yaw)],
+                        [avgX + W/2 * sin(yaw) - L * cos(yaw), avgY + W/2 * cos(yaw) + L * sin(yaw)],
+                        [avgX + W/2 * sin(yaw), avgY + W/2 * cos(yaw)]], np.float64)
+                avgYaw += 90-degrees(yaw)
+        # unit conversion
+        if unit.name == "PX":
+            avgX *= CONFIG["field_data"]["m_to_px"]
+            avgY *= CONFIG["field_data"]["m_to_px"]
+            if find_robot_corners:
+                avgRobot = np.dot(avgRobot, CONFIG["field_data"]["m_to_px"])
         # average out the estimations
         avgX /= len(results)
         avgY /= len(results)
-        avgRobot = np.dot(avgRobot, 1.0/len(results))
-        avgRobot = avgRobot.astype("int32").reshape((-1,1,2))
-        # avgRobot = avgRobot.reshape((-1, 1, 2))
-        # draw a dot on the estimated location of the camera
-        cv2.circle(img, (int(avgX), int(avgY)), 5, (0, 255, 0), -1)
-        # draw the robot's estimated location and pose
-        cv2.polylines(img, [avgRobot], True, (252, 255, 102), 2)
+        avgYaw /= len(results)
+        if find_robot_corners:
+            avgRobot = np.dot(avgRobot, 1.0/len(results))
+            avgRobot = avgRobot.astype("int32").reshape((-1,1,2))
+            return avgX, avgY, avgYaw, avgRobot, tag_used
+        return avgX, avgY, avgYaw, None, tag_used
+    return -1,-1,-1,-1,-1
+
+def draw_on_field(results) -> cv2.Mat:
+    TAGS = CONFIG["field_data"]["tags"]
+    # open an image called field.png
+    img = cv2.imread("field.png")
+    avgX, avgY, _, avgRobot, tag_used = calculate_abs_field_pos(results, True, Units.PX)
+    if (avgX,avgY,_,avgRobot,tag_used) == (-1,-1,-1,-1,-1):
+        # did not detect any tags
+        return img
+    # draw a dot on the estimated location of the camera
+    cv2.circle(img, (int(avgX), int(avgY)), 5, (0, 255, 0), -1)
+    # draw the robot's estimated location and pose
+    cv2.polylines(img, [avgRobot], True, (252, 255, 102), 2)
     for point in TAGS:
         if point["id"] == 0:
             continue
