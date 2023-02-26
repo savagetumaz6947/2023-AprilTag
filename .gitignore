@@ -163,3 +163,5 @@ cython_debug/
 images_for_calibration/*
 !images_for_calibration/.gitkeep
 !images_for_calibration/samples/
+!images_for_calibration/samples/*
+test*.py

@@ -45,7 +45,7 @@ for fname in images:
         cv2.drawChessboardCorners(img, (CB_WIDTH, CB_HEIGHT), corners2, ret)
         cv2.imshow("img", img)
         # display the image for 500ms (0.5s)
-        key = cv2.waitKey(500)
+        key = cv2.waitKey(1)
 
 cv2.destroyAllWindows()
 
