@@ -36,7 +36,7 @@ yPub = vision_nt.getDoubleTopic("abs_y").publish()
 yawPub = vision_nt.getDoubleTopic("abs_yaw").publish()
 
 # Allocating new images is very expensive, always try to preallocate
-img = np.zeros(shape=(1024, 576, 3), dtype=np.uint8)
+img = np.zeros(shape=(width, height, 3), dtype=np.uint8)
 
 # Wait for NetworkTable to start
 time.sleep(0.5)

@@ -1,5 +1,4 @@
-from audioop import avg
-import pupil_apriltags as atag
+import apriltag as atag
 import cv2
 import numpy as np
 from _helper import get_config
@@ -21,27 +20,41 @@ def detect_apriltags(input_frame: cv2.Mat, draw_tags=True, draw_tag_dists=True) 
     gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
     # get the dectector with the family of tags we want to detect
-    detector = atag.Detector(families=CONFIG["apriltag"]["tag_family"])
+    detector = atag.Detector(atag.DetectorOptions(families=CONFIG["apriltag"]["tag_family"]))
 
     # detect the apriltags in the image
-    results = detector.detect(gray_frame, True, (MTX[0,0], MTX[1,1], MTX[0,2], MTX[1,2]), TAG_SIZE)
+    results = detector.detect(gray_frame)
 
     return_list = []
 
     for r in results:
         if not (r.decision_margin > 10 and r.hamming <= 1 and 1 <= r.tag_id <= 8):
             continue
+
+        # undistort points
+        corners = np.array(cv2.undistortImagePoints(r.corners, MTX, DIST)).squeeze()
+        r = r._replace(corners=corners)
+        center = np.array(cv2.undistortImagePoints(r.center, MTX, DIST)).squeeze()
+        r = r._replace(center=center)
+
+        # detect the pose of the apriltag
+        pose, e0, e1 = detector.detection_pose(r, (MTX[0,0], MTX[1,1], MTX[0,2], MTX[1,2]), TAG_SIZE)
+
+        # get the rotation and translation matrices
+        pose_R = pose[:3, :3]
+        pose_t = pose[:3, 3]
+
         # draw r.center and r.corners in the image
         cv2.circle(frame, (int(r.center[0]), int(r.center[1])), 5, (0, 0, 255), -1)
         # draw r.corners as a polygon
         cv2.polylines(frame, np.int32([r.corners]), True, (0, 255, 0), 2)
         # translate that to yaw, pitch, roll in degrees
-        rot = R.from_matrix(r.pose_R)
+        rot = R.from_matrix(pose_R)
         yaw, pitch, roll = rot.as_euler('yxz', degrees=True)
         
         return_list.append({
             "id": r.tag_id,
-            "dist": tuple(np.squeeze(r.pose_t)), # x, y, z distances
+            "dist": tuple(np.squeeze(pose_t)), # x, y, z distances
             "rot": (yaw, pitch, roll), # yaw, pitch, roll
         })
 
