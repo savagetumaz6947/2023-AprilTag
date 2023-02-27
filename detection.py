@@ -38,7 +38,7 @@ def detect_apriltags(input_frame: cv2.Mat, draw_tags=True, draw_tag_dists=True) 
         r = r._replace(center=center)
 
         # detect the pose of the apriltag
-        pose, e0, e1 = detector.detection_pose(r, (MTX[0,0], MTX[1,1], MTX[0,2], MTX[1,2]), TAG_SIZE)
+        pose, e0, e1 = detector.detection_pose(r, [MTX[0,0], MTX[1,1], MTX[0,2], MTX[1,2]], tag_size=TAG_SIZE)
 
         # get the rotation and translation matrices
         pose_R = pose[:3, :3]
