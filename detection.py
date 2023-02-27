@@ -143,13 +143,12 @@ def draw_on_field(results) -> cv2.Mat:
     # open an image called field.png
     img = cv2.imread("field.png")
     avgX, avgY, _, avgRobot, tag_used = calculate_abs_field_pos(results, True, Units.PX)
-    if (avgX,avgY,_,avgRobot,tag_used) == (-1,-1,-1,-1,-1):
-        # did not detect any tags
-        return img
-    # draw a dot on the estimated location of the camera
-    cv2.circle(img, (int(avgX), int(avgY)), 5, (0, 255, 0), -1)
-    # draw the robot's estimated location and pose
-    cv2.polylines(img, [avgRobot], True, (252, 255, 102), 2)
+    if (avgX,avgY,_,avgRobot,tag_used) != (-1,-1,-1,-1,-1):
+        # detected tags
+        # draw a dot on the estimated location of the camera
+        cv2.circle(img, (int(avgX), int(avgY)), 5, (0, 255, 0), -1)
+        # draw the robot's estimated location and pose
+        cv2.polylines(img, [avgRobot], True, (252, 255, 102), 2)
     for point in TAGS:
         if point["id"] == 0:
             continue

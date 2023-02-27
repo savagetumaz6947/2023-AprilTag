@@ -32,6 +32,7 @@ images = glob.glob(f"{CONFIG['images_for_calc_intrinsics_folder_location']}/*.jp
 for fname in images:
     print(f"[INFO] Processing {fname}")
     img = cv2.imread(fname)
+    img = cv2.resize(img, (CONFIG["camera"]["size"]["width"], CONFIG["camera"]["size"]["height"]))
     # convert to grayscale
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     # Find the chess board corners

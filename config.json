@@ -19,8 +19,8 @@
             "exposure_absolute": 12
         },
         "size": {
-            "width": 1024,
-            "height": 576,
+            "width": 400,
+            "height": 300,
             "_comment": "1024x576 is tested by @aaronleetw to be the minimum resolution while",
             "_comment_2": "still preserving accuracy (need more testing to confirm)"
         }

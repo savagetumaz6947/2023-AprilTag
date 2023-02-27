@@ -4,7 +4,7 @@ from ntcore import NetworkTableInstance
 import numpy as np
 import time
 import cv2
-from detection import detect_apriltags, calculate_abs_field_pos
+from detection import detect_apriltags, calculate_abs_field_pos, draw_on_field
 from units import Units
 
 # use the settings from the WPILib web interface
@@ -24,12 +24,14 @@ camera.setResolution(width, height)
 input_stream = CameraServer.getVideo()
 orig_output_stream = CameraServer.putVideo("Original", width, height)
 marked_output_stream = CameraServer.putVideo("Marked", width, height)
-field_output_stream = CameraServer.putVideo("Field", width, height)
+field_output_stream = CameraServer.putVideo("Field", 1267, 514)
 
 # get the network table instance
 inst = NetworkTableInstance.getDefault()
-inst.startServer()
-vision_nt = inst.getTable("RPiVision")
+inst.startClient4("RPiVision")
+inst.setServerTeam(6947)
+
+vision_nt = inst.getTable("SmartDashboard")
 
 xPub = vision_nt.getDoubleTopic("abs_x").publish()
 yPub = vision_nt.getDoubleTopic("abs_y").publish()
@@ -51,8 +53,10 @@ while True:
         field_output_stream.notifyError(input_stream.getError())
         continue
 
+    # TODO: downscale before scan
     drawn_frame, tags = detect_apriltags(input_img, draw_tags=True, draw_tag_dists=True)
     x_pos, y_pos, yaw, _, tag_used = calculate_abs_field_pos(tags, False, Units.M)
+    field = draw_on_field(tags)
 
     processing_time = time.time() - start_time
     fps = 1 / processing_time
@@ -63,6 +67,7 @@ while True:
 
     orig_output_stream.putFrame(input_img)
     marked_output_stream.putFrame(drawn_frame)
+    field_output_stream.putFrame(field)
 
     # publish to NetworkTables
     xPub.set(x_pos)
